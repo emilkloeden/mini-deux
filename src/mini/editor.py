@@ -20,7 +20,7 @@ from mini.config import EDITOR_NAME, EDITOR_VERSION, QUIT_TIMES, TAB_STOP
 from mini.highlight import HL_COLORS, update_syntax
 from mini.ansi import iscntrl
 from mini.terminal import editor_read_key, reset_screen, die
-from mini.types import EditorConfig, EditorRow, Mode
+from mini.types import EditorConfig, EditorRow, Mode, Snapshot
 
 
 logging.basicConfig(filename="app.log", level=logging.DEBUG)
@@ -138,6 +138,91 @@ def _insert_key(E: EditorConfig, key: int):
     E.quit_times = QUIT_TIMES
 
 
+def _apply_delete_motion(
+    E: EditorConfig, from_cx: int, from_cy: int, to_cx: int, to_cy: int
+) -> None:
+    """Delete text from (from_cy, from_cx) up to (to_cy, to_cx), then place cursor at from."""
+    if (from_cy, from_cx) > (to_cy, to_cx):
+        from_cx, to_cx = to_cx, from_cx
+        from_cy, to_cy = to_cy, from_cy
+    if from_cy == to_cy:
+        if from_cx == to_cx:
+            return
+        row = E.rows[from_cy]
+        row.chars = row.chars[:from_cx] + row.chars[to_cx:]
+        row.size = len(row.chars)
+        editor_update_row(row)
+        E.dirty += 1
+    else:
+        start_row = E.rows[from_cy]
+        end_row = E.rows[to_cy]
+        new_chars = start_row.chars[:from_cx] + end_row.chars[to_cx:]
+        start_row.chars = new_chars
+        start_row.size = len(new_chars)
+        editor_update_row(start_row)
+        E.dirty += 1
+        for _ in range(to_cy - from_cy):
+            editor_del_row(E, from_cy + 1)
+    E.cy = min(from_cy, E.num_rows - 1) if E.num_rows > 0 else 0
+    E.cx = from_cx
+    if E.cy < E.num_rows:
+        E.cx = min(E.cx, E.rows[E.cy].size)
+
+
+def _delete_lines(E: EditorConfig, start_line: int, end_line: int) -> None:
+    """Delete lines [start_line, end_line] inclusive (line-wise)."""
+    start_line = max(0, start_line)
+    end_line = min(end_line, E.num_rows - 1)
+    for _ in range(end_line - start_line + 1):
+        editor_del_row(E, start_line)
+    E.cy = min(start_line, E.num_rows - 1) if E.num_rows > 0 else 0
+    E.cx = 0
+
+
+def _snapshot(E: EditorConfig) -> Snapshot:
+    return ([row.chars for row in E.rows], E.cx, E.cy)
+
+
+MAX_UNDO = 100
+
+
+def _push_undo(E: EditorConfig) -> None:
+    E.undo_stack.append(_snapshot(E))
+    if len(E.undo_stack) > MAX_UNDO:
+        E.undo_stack.pop(0)
+    E.redo_stack.clear()
+
+
+def _restore_snapshot(E: EditorConfig, snap: Snapshot) -> None:
+    rows_chars, cx, cy = snap
+    E.rows = []
+    E.num_rows = 0
+    for chars in rows_chars:
+        row = EditorRow(chars=chars, size=len(chars), render="", render_size=0)
+        editor_update_row(row)
+        E.rows.append(row)
+        E.num_rows += 1
+    E.dirty = 1
+    E.cy = min(cy, E.num_rows - 1) if E.num_rows > 0 else 0
+    E.cx = min(cx, E.rows[E.cy].size) if E.num_rows > 0 else 0
+
+
+def editor_undo(E: EditorConfig) -> None:
+    if not E.undo_stack:
+        editor_set_status_message(E, "Already at oldest change")
+        return
+    E.redo_stack.append(_snapshot(E))
+    _restore_snapshot(E, E.undo_stack.pop())
+
+
+def editor_redo(E: EditorConfig) -> None:
+    if not E.redo_stack:
+        editor_set_status_message(E, "Already at newest change")
+        return
+    E.undo_stack.append(_snapshot(E))
+    _restore_snapshot(E, E.redo_stack.pop())
+
+
 def _normal_key(E: EditorConfig, key: int):
     # Count accumulation: digits 1-9, or 0 when count already started
     if ord("1") <= key <= ord("9") or (key == ord("0") and E.count_buf):
@@ -149,30 +234,63 @@ def _normal_key(E: EditorConfig, key: int):
 
     match key:
         case _ if key == ord("h") or key == EditorKey.ARROW_LEFT:
+            old_cx, old_cy = E.cx, E.cy
             for _ in range(count):
                 editor_move_cursor(E, EditorKey.ARROW_LEFT)
+            if E.pending_op == "d":
+                _push_undo(E)
+                _apply_delete_motion(E, old_cx, old_cy, E.cx, E.cy)
         case _ if key == ord("l") or key == EditorKey.ARROW_RIGHT:
+            old_cx, old_cy = E.cx, E.cy
             for _ in range(count):
                 editor_move_cursor(E, EditorKey.ARROW_RIGHT)
+            if E.pending_op == "d":
+                _push_undo(E)
+                _apply_delete_motion(E, old_cx, old_cy, E.cx, E.cy)
         case _ if key == ord("k") or key == EditorKey.ARROW_UP:
-            for _ in range(count):
-                editor_move_cursor(E, EditorKey.ARROW_UP)
+            if E.pending_op == "d":
+                _push_undo(E)
+                _delete_lines(E, E.cy - count, E.cy)
+            else:
+                for _ in range(count):
+                    editor_move_cursor(E, EditorKey.ARROW_UP)
         case _ if key == ord("j") or key == EditorKey.ARROW_DOWN:
-            for _ in range(count):
-                editor_move_cursor(E, EditorKey.ARROW_DOWN)
+            if E.pending_op == "d":
+                _push_undo(E)
+                _delete_lines(E, E.cy, E.cy + count)
+            else:
+                for _ in range(count):
+                    editor_move_cursor(E, EditorKey.ARROW_DOWN)
         case _ if key == ord("0"):
+            old_cx, old_cy = E.cx, E.cy
             E.cx = 0
+            if E.pending_op == "d":
+                _push_undo(E)
+                _apply_delete_motion(E, old_cx, old_cy, E.cx, E.cy)
         case _ if key == ord("$") or key == EditorKey.END_KEY:
+            old_cx, old_cy = E.cx, E.cy
             if row:
                 E.cx = row.size
+            if E.pending_op == "d":
+                _push_undo(E)
+                _apply_delete_motion(E, old_cx, old_cy, E.cx, E.cy)
         case EditorKey.HOME_KEY:
+            old_cx, old_cy = E.cx, E.cy
             E.cx = 0
+            if E.pending_op == "d":
+                _push_undo(E)
+                _apply_delete_motion(E, old_cx, old_cy, E.cx, E.cy)
         case _ if key == ord("G"):
-            if E.count_buf:
-                E.cy = max(0, min(count - 1, E.num_rows - 1))
+            if E.pending_op == "d":
+                target = max(0, min(count - 1, E.num_rows - 1)) if E.count_buf else max(0, E.num_rows - 1)
+                _push_undo(E)
+                _delete_lines(E, min(E.cy, target), max(E.cy, target))
             else:
-                E.cy = max(0, E.num_rows - 1)
-            E.cx = 0
+                if E.count_buf:
+                    E.cy = max(0, min(count - 1, E.num_rows - 1))
+                else:
+                    E.cy = max(0, E.num_rows - 1)
+                E.cx = 0
         case _ if key == ord("g"):
             if E.pending_op == "g":
                 E.cy = 0
@@ -180,20 +298,42 @@ def _normal_key(E: EditorConfig, key: int):
                 E.pending_op = ""
                 E.count_buf = ""
                 return
+            elif E.pending_op == "d":
+                # first g of dgg — wait for second g
+                E.pending_op = "dg"
+                return
+            elif E.pending_op == "dg":
+                # second g: dgg — delete to top of file
+                _push_undo(E)
+                _delete_lines(E, 0, E.cy)
             else:
                 E.pending_op = "g"
                 return
         case _ if key == ord("w"):
+            old_cx, old_cy = E.cx, E.cy
             for _ in range(count):
                 editor_move_word_forward(E)
+            if E.pending_op == "d":
+                _push_undo(E)
+                _apply_delete_motion(E, old_cx, old_cy, E.cx, E.cy)
         case _ if key == ord("b"):
+            old_cx, old_cy = E.cx, E.cy
             for _ in range(count):
                 editor_move_word_backward(E)
+            if E.pending_op == "d":
+                _push_undo(E)
+                _apply_delete_motion(E, old_cx, old_cy, E.cx, E.cy)
         case _ if key == ord("e"):
+            old_cx, old_cy = E.cx, E.cy
             for _ in range(count):
                 editor_move_word_end(E)
+            if E.pending_op == "d":
+                # e is inclusive of the end character
+                _push_undo(E)
+                _apply_delete_motion(E, old_cx, old_cy, E.cx + 1, E.cy)
         case _ if key == ord("x"):
             if row:
+                _push_undo(E)
                 for _ in range(count):
                     cur_row = E.rows[E.cy] if E.cy < E.num_rows else None
                     if cur_row and E.cx < cur_row.size:
@@ -202,6 +342,7 @@ def _normal_key(E: EditorConfig, key: int):
                             E.cx = cur_row.size - 1
         case _ if key == ord("d"):
             if E.pending_op == "d":
+                _push_undo(E)
                 for _ in range(count):
                     editor_del_row(E, E.cy)
                 if E.cy >= E.num_rows and E.cy > 0:
@@ -214,21 +355,26 @@ def _normal_key(E: EditorConfig, key: int):
                 E.pending_op = "d"
                 return
         case _ if key == ord("i"):
+            _push_undo(E)
             E.mode = Mode.INSERT
         case _ if key == ord("a"):
+            _push_undo(E)
             if row:
                 E.cx = min(E.cx + 1, row.size)
             E.mode = Mode.INSERT
         case _ if key == ord("A"):
+            _push_undo(E)
             if row:
                 E.cx = row.size
             E.mode = Mode.INSERT
         case _ if key == ord("o"):
+            _push_undo(E)
             editor_insert_row(E, E.cy + 1, "")
             E.cy += 1
             E.cx = 0
             E.mode = Mode.INSERT
         case _ if key == ord("O"):
+            _push_undo(E)
             editor_insert_row(E, E.cy, "")
             E.cx = 0
             E.mode = Mode.INSERT
@@ -250,6 +396,10 @@ def _normal_key(E: EditorConfig, key: int):
             editor_save(E)
         case _ if key == ctrl_key("f"):
             editor_find(E)
+        case _ if key == ord("u"):
+            editor_undo(E)
+        case _ if key == ctrl_key("r"):
+            editor_redo(E)
         case _:
             pass
 

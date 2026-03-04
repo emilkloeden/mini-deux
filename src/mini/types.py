@@ -3,6 +3,7 @@ from enum import Enum
 from typing import Any
 
 Termios = list[Any]
+Snapshot = tuple[list[str], int, int]   # (row chars list, cx, cy)
 
 
 class Mode(Enum):
@@ -39,3 +40,5 @@ class EditorConfig:
     mode: Mode = field(default_factory=lambda: Mode.NORMAL)
     count_buf: str = ""
     pending_op: str = ""
+    undo_stack: list[Snapshot] = field(default_factory=list)
+    redo_stack: list[Snapshot] = field(default_factory=list)
