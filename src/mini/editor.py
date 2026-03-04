@@ -6,6 +6,7 @@ from typing import Callable
 from mini.keyboard import EditorKey
 from mini.ansi import (
     CLEAR_EOL,
+    GUTTER_COLOR,
     HIDE_CURSOR,
     INVERT_COLORS,
     RESET_CURSOR_POS,
@@ -60,7 +61,7 @@ def editor_refresh_screen(E: EditorConfig):
     editor_draw_status_bar(E, ab)
     editor_draw_message_bar(E, ab)
 
-    ab.append(set_cursor_pos(x=(E.rx - E.col_offset) + 1, y=(E.cy - E.row_offset) + 1))
+    ab.append(set_cursor_pos(x=(E.rx - E.col_offset) + _gutter_width(E) + 1, y=(E.cy - E.row_offset) + 1))
     ab.append(SHOW_CURSOR)
     ab.flush()
 
@@ -411,6 +412,11 @@ def editor_del_row(E: EditorConfig, at: int) -> None:
     E.dirty += 1
 
 
+def _gutter_width(E: EditorConfig) -> int:
+    """Digits needed for the largest line number + 1 space separator."""
+    return len(str(max(E.num_rows, 1))) + 1
+
+
 def editor_scroll(E: EditorConfig):
     E.rx = E.cx
     if E.cy < E.num_rows:
@@ -419,21 +425,27 @@ def editor_scroll(E: EditorConfig):
         E.row_offset = E.cy
     if E.cy >= E.row_offset + E.screen_rows:
         E.row_offset = E.cy - E.screen_rows + 1
+    content_cols = E.screen_cols - _gutter_width(E)
     if E.rx < E.col_offset:
         E.col_offset = E.rx
-    if E.rx >= E.col_offset + E.screen_cols:
-        E.col_offset = E.rx - E.screen_cols + 1
+    if E.rx >= E.col_offset + content_cols:
+        E.col_offset = E.rx - content_cols + 1
 
 
 def editor_draw_rows(E: EditorConfig, ab: AppendBuffer):
+    gw = _gutter_width(E)
+    num_width = gw - 1
+    content_cols = E.screen_cols - gw
+
     for y in range(E.screen_rows):
         file_row = y + E.row_offset
         if file_row >= E.num_rows:
+            ab.append(" " * gw)
             if E.num_rows == 0 and y == E.screen_rows // 3:
                 welcome = f"{EDITOR_NAME} editor -- version {EDITOR_VERSION}"
-                if len(welcome) > E.screen_cols:
-                    welcome = welcome[: E.screen_cols]
-                padding = (E.screen_cols - len(welcome)) / 2
+                if len(welcome) > content_cols:
+                    welcome = welcome[:content_cols]
+                padding = (content_cols - len(welcome)) / 2
                 if padding:
                     ab.append("~")
                     padding -= 1
@@ -444,29 +456,35 @@ def editor_draw_rows(E: EditorConfig, ab: AppendBuffer):
             else:
                 ab.append("~")
         else:
-            if E.rows[file_row]:
-                length = E.rows[file_row].render_size - E.col_offset
-                if length < 0:
-                    length = 0
-                if length > E.screen_cols:
-                    length = E.screen_cols
-                row = E.rows[file_row]
-                visible = row.render[E.col_offset : E.col_offset + length]
-                if file_row == 0:
-                    logging.debug(
-                        f"draw_rows row0: render_size={row.render_size} {length=} {visible=}"
-                    )
-                if row.hl:
-                    hl_slice = row.hl[E.col_offset : E.col_offset + length]
-                    current_hl = -1
-                    for char, hl_type in zip(visible, hl_slice):
-                        if hl_type != current_hl:
-                            ab.append(HL_COLORS[hl_type])
-                            current_hl = hl_type
-                        ab.append(char)
-                    ab.append(RESET_FG_COLOR)
-                else:
-                    ab.append(visible)
+            # Gutter: absolute on current line, relative (dim) elsewhere
+            if file_row == E.cy:
+                ab.append(str(file_row + 1).rjust(num_width) + " ")
+            else:
+                rel = abs(file_row - E.cy)
+                ab.append(GUTTER_COLOR + str(rel).rjust(num_width) + " " + RESET_FORMATTING)
+
+            length = E.rows[file_row].render_size - E.col_offset
+            if length < 0:
+                length = 0
+            if length > content_cols:
+                length = content_cols
+            row = E.rows[file_row]
+            visible = row.render[E.col_offset:E.col_offset + length]
+            if file_row == 0:
+                logging.debug(
+                    f"draw_rows row0: render_size={row.render_size} {length=} {visible=}"
+                )
+            if row.hl:
+                hl_slice = row.hl[E.col_offset:E.col_offset + length]
+                current_hl = -1
+                for char, hl_type in zip(visible, hl_slice):
+                    if hl_type != current_hl:
+                        ab.append(HL_COLORS[hl_type])
+                        current_hl = hl_type
+                    ab.append(char)
+                ab.append(RESET_FG_COLOR)
+            else:
+                ab.append(visible)
         ab.append(CLEAR_EOL)
         ab.append("\r\n")
 
