@@ -2,6 +2,7 @@ import tree_sitter_python as tspython
 from tree_sitter import Language, Parser, Query, QueryCursor
 
 from mini.config import TAB_STOP
+from mini.terminal import term
 from mini.types import EditorConfig, EditorRow
 
 HL_NORMAL = 0
@@ -13,13 +14,13 @@ HL_FUNCTION = 5
 HL_TYPE = 6
 
 HL_COLORS = {
-    HL_NORMAL: "\x1b[39m",
-    HL_COMMENT: "\x1b[90m",
-    HL_KEYWORD: "\x1b[33m",
-    HL_STRING: "\x1b[32m",
-    HL_NUMBER: "\x1b[36m",
-    HL_FUNCTION: "\x1b[94m",
-    HL_TYPE: "\x1b[35m",
+    HL_NORMAL:   term.normal,
+    HL_COMMENT:  term.bright_black,
+    HL_KEYWORD:  term.yellow,
+    HL_STRING:   term.green,
+    HL_NUMBER:   term.cyan,
+    HL_FUNCTION: term.bright_blue,
+    HL_TYPE:     term.magenta,
 }
 
 PYTHON_KEYWORDS = {

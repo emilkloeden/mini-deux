@@ -5,9 +5,11 @@ from typing import Callable
 
 from mini.keyboard import EditorKey
 from mini.ansi import (
+    CLEAR_EOL,
     HIDE_CURSOR,
     INVERT_COLORS,
     RESET_CURSOR_POS,
+    RESET_FG_COLOR,
     RESET_FORMATTING,
     SHOW_CURSOR,
     set_cursor_pos,
@@ -462,10 +464,10 @@ def editor_draw_rows(E: EditorConfig, ab: AppendBuffer):
                             ab.append(HL_COLORS[hl_type])
                             current_hl = hl_type
                         ab.append(char)
-                    ab.append("\x1b[39m")
+                    ab.append(RESET_FG_COLOR)
                 else:
                     ab.append(visible)
-        ab.append("\x1b[K")
+        ab.append(CLEAR_EOL)
         ab.append("\r\n")
 
 
@@ -495,7 +497,7 @@ def editor_set_status_message(E: EditorConfig, fmt: str, *args: object) -> None:
 
 
 def editor_draw_message_bar(E: EditorConfig, ab: AppendBuffer):
-    ab.append("\x1b[K")
+    ab.append(CLEAR_EOL)
     msg_len = len(E.status_msg)
     if msg_len > E.screen_cols:
         msg_len = E.screen_cols

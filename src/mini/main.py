@@ -1,10 +1,7 @@
 import atexit
-import os
 import sys
-import termios
 
 from mini.config import QUIT_TIMES
-from mini.constants import STDIN_FILENO
 from mini.editor import (
     editor_process_keypress,
     editor_refresh_screen,
@@ -12,15 +9,14 @@ from mini.editor import (
     editor_set_status_message,
 )
 from mini.types import EditorConfig, Mode
-from mini.terminal import disable_raw_mode, enable_raw_mode
+from mini.terminal import disable_raw_mode, enable_raw_mode, term
 
 
 def init_editor():
-    cols, rows = os.get_terminal_size()
     return EditorConfig(
-        orig_termios=termios.tcgetattr(STDIN_FILENO),
-        screen_rows=rows - 2,
-        screen_cols=cols,
+        orig_termios=[],
+        screen_rows=term.height - 2,
+        screen_cols=term.width,
         cx=0,
         cy=0,
         rx=0,
