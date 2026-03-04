@@ -1,3 +1,4 @@
+import re
 import sys
 import logging
 from blessed import Terminal
@@ -39,6 +40,13 @@ def editor_read_key() -> int:
         return EditorKey.ESCAPE
 
     if key.is_sequence:
+        if key.code is None:
+            # Unrecognised sequence — str(key) is the raw escape bytes.
+            # Alt+digit: ESC {digit}  e.g. \x1b1
+            m = re.match(r"^\x1b([0-9])$", str(key))
+            if m:
+                return EditorKey.ALT_DIGIT_0 + int(m.group(1))
+            return EditorKey.ESCAPE
         mapping = {
             term.KEY_LEFT:      EditorKey.ARROW_LEFT,
             term.KEY_RIGHT:     EditorKey.ARROW_RIGHT,
@@ -56,4 +64,14 @@ def editor_read_key() -> int:
         return int(mapping.get(key.code, key.code))
 
     ch = str(key)
-    return ord(ch) if ch else EditorKey.ESCAPE
+    code = ord(ch) if ch else EditorKey.ESCAPE
+
+    if code == EditorKey.ESCAPE:
+        # Some terminals send Alt+digit as two separate events: ESC then the
+        # digit.  Drain the read-ahead buffer immediately (non-blocking).
+        nk = term.inkey(timeout=0)
+        if nk and not nk.is_sequence and str(nk).isdigit():
+            return EditorKey.ALT_DIGIT_0 + int(str(nk))
+        # Not an Alt+digit — return plain ESC.
+
+    return code

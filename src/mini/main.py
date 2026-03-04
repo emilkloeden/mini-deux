@@ -2,6 +2,7 @@ import argparse
 import atexit
 
 from mini.config import QUIT_TIMES
+from mini.themes import THEMES
 from mini.editor import (
     editor_process_keypress,
     editor_refresh_screen,
@@ -42,7 +43,7 @@ def main():
     parser.add_argument(
         "--theme",
         default="default",
-        choices=["default", "tokyo_night", "tokyo-night"],
+        choices=list(THEMES.keys()),
     )
     args = parser.parse_args()
 

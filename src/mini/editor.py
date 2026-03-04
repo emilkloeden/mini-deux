@@ -16,7 +16,7 @@ from mini.ansi import (
 from mini.append_buffer import AppendBuffer
 from mini.config import EDITOR_NAME, EDITOR_VERSION, QUIT_TIMES, TAB_STOP
 from mini.highlight import update_syntax
-from mini.themes import get_theme
+from mini.themes import get_theme, THEME_LIST
 from mini.ansi import iscntrl
 from mini.terminal import editor_read_key, reset_screen, die
 from mini.types import EditorConfig, EditorRow, Mode, Snapshot
@@ -71,6 +71,16 @@ def editor_process_keypress(E: EditorConfig):
         _normal_key(E, key)
     else:
         _insert_key(E, key)
+
+
+def _theme_key(E: EditorConfig, key: int) -> bool:
+    """Switch theme on Alt+0..9. Returns True if handled."""
+    if EditorKey.ALT_DIGIT_0 <= key <= EditorKey.ALT_DIGIT_9:
+        n = key - EditorKey.ALT_DIGIT_0
+        E.theme_name = THEME_LIST[n]
+        editor_set_status_message(E, f"Theme: {THEME_LIST[n]}")
+        return True
+    return False
 
 
 def _insert_key(E: EditorConfig, key: int):
@@ -132,8 +142,9 @@ def _insert_key(E: EditorConfig, key: int):
         ):
             editor_move_cursor(E, key)
         case _:
-            logging.debug(f"Default case insert char {key:d}")
-            editor_insert_char(E, key)
+            if not _theme_key(E, key):
+                logging.debug(f"Default case insert char {key:d}")
+                editor_insert_char(E, key)
     E.quit_times = QUIT_TIMES
 
 
@@ -400,7 +411,7 @@ def _normal_key(E: EditorConfig, key: int):
         case _ if key == ctrl_key("r"):
             editor_redo(E)
         case _:
-            pass
+            _theme_key(E, key)
 
     E.count_buf = ""
     E.pending_op = ""
