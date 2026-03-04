@@ -42,3 +42,4 @@ class EditorConfig:
     pending_op: str = ""
     undo_stack: list[Snapshot] = field(default_factory=list)
     redo_stack: list[Snapshot] = field(default_factory=list)
+    theme_name: str = "default"

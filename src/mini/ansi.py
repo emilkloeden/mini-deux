@@ -8,7 +8,6 @@ INVERT_COLORS    = term.reverse
 RESET_FORMATTING = term.normal
 CLEAR_EOL        = term.clear_eol
 RESET_FG_COLOR   = term.normal
-GUTTER_COLOR     = term.bright_black
 
 ESC_BYTE = 0x1B
 

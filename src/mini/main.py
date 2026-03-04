@@ -1,5 +1,5 @@
+import argparse
 import atexit
-import sys
 
 from mini.config import QUIT_TIMES
 from mini.editor import (
@@ -12,7 +12,7 @@ from mini.types import EditorConfig, Mode
 from mini.terminal import disable_raw_mode, enable_raw_mode, term
 
 
-def init_editor():
+def init_editor(theme_name: str = "default") -> EditorConfig:
     return EditorConfig(
         orig_termios=[],
         screen_rows=term.height - 2,
@@ -32,16 +32,26 @@ def init_editor():
         mode=Mode.NORMAL,
         count_buf="",
         pending_op="",
+        theme_name=theme_name,
     )
 
 
 def main():
-    E = init_editor()
+    parser = argparse.ArgumentParser(prog="mini")
+    parser.add_argument("filename", nargs="?", default="")
+    parser.add_argument(
+        "--theme",
+        default="default",
+        choices=["default", "tokyo_night", "tokyo-night"],
+    )
+    args = parser.parse_args()
+
+    E = init_editor(theme_name=args.theme)
     E = enable_raw_mode(E)
     atexit.register(disable_raw_mode, E)
 
-    if len(sys.argv) >= 2:
-        editor_open(E, sys.argv[1])
+    if args.filename:
+        editor_open(E, args.filename)
 
     editor_set_status_message(E, "HELP: Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find")
     while True:

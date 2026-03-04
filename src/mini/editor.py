@@ -6,9 +6,7 @@ from typing import Callable
 from mini.keyboard import EditorKey
 from mini.ansi import (
     CLEAR_EOL,
-    GUTTER_COLOR,
     HIDE_CURSOR,
-    INVERT_COLORS,
     RESET_CURSOR_POS,
     RESET_FG_COLOR,
     RESET_FORMATTING,
@@ -17,7 +15,8 @@ from mini.ansi import (
 )
 from mini.append_buffer import AppendBuffer
 from mini.config import EDITOR_NAME, EDITOR_VERSION, QUIT_TIMES, TAB_STOP
-from mini.highlight import HL_COLORS, update_syntax
+from mini.highlight import update_syntax
+from mini.themes import get_theme
 from mini.ansi import iscntrl
 from mini.terminal import editor_read_key, reset_screen, die
 from mini.types import EditorConfig, EditorRow, Mode, Snapshot
@@ -586,6 +585,8 @@ def editor_draw_rows(E: EditorConfig, ab: AppendBuffer):
     gw = _gutter_width(E)
     num_width = gw - 1
     content_cols = E.screen_cols - gw
+    theme = get_theme(E.theme_name)
+    gutter_col = theme.gutter_insert if E.mode == Mode.INSERT else theme.gutter_current
 
     for y in range(E.screen_rows):
         file_row = y + E.row_offset
@@ -606,12 +607,12 @@ def editor_draw_rows(E: EditorConfig, ab: AppendBuffer):
             else:
                 ab.append("~")
         else:
-            # Gutter: absolute on current line, relative (dim) elsewhere
+            # Gutter: absolute on current line (mode-coloured), relative (dim) elsewhere
             if file_row == E.cy:
-                ab.append(str(file_row + 1).rjust(num_width) + " ")
+                ab.append(gutter_col + str(file_row + 1).rjust(num_width) + " " + RESET_FORMATTING)
             else:
                 rel = abs(file_row - E.cy)
-                ab.append(GUTTER_COLOR + str(rel).rjust(num_width) + " " + RESET_FORMATTING)
+                ab.append(theme.gutter_dim + str(rel).rjust(num_width) + " " + RESET_FORMATTING)
 
             length = E.rows[file_row].render_size - E.col_offset
             if length < 0:
@@ -629,7 +630,7 @@ def editor_draw_rows(E: EditorConfig, ab: AppendBuffer):
                 current_hl = -1
                 for char, hl_type in zip(visible, hl_slice):
                     if hl_type != current_hl:
-                        ab.append(HL_COLORS[hl_type])
+                        ab.append(theme.hl_colors[hl_type])
                         current_hl = hl_type
                     ab.append(char)
                 ab.append(RESET_FG_COLOR)
@@ -640,7 +641,9 @@ def editor_draw_rows(E: EditorConfig, ab: AppendBuffer):
 
 
 def editor_draw_status_bar(E: EditorConfig, ab: AppendBuffer):
-    ab.append(INVERT_COLORS)
+    theme = get_theme(E.theme_name)
+    bar_style = theme.statusbar_insert if E.mode == Mode.INSERT else theme.statusbar_normal
+    ab.append(bar_style)
     file_name = E.file_name if E.file_name else "[No Name]"
     mode_str = f"[{E.mode.value}]"
     status = f"{mode_str} {file_name:20s} - {E.num_rows} lines {'(modified)' if E.dirty else ''}"
