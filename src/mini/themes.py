@@ -32,7 +32,7 @@ DEFAULT = Theme(
         term.magenta,       # HL_TYPE
     ),
     statusbar_normal=term.reverse,
-    statusbar_insert=term.on_green,
+    statusbar_insert=term.on_green + term.black,
     gutter_dim=term.bright_black,
     gutter_current=term.normal,
     gutter_insert=term.green,
