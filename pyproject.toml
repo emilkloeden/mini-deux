@@ -25,5 +25,13 @@ build-backend = "hatchling.build"
 [tool.uv]
 package = true
 
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
+
 [project.scripts]
 mini = "mini.main:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
