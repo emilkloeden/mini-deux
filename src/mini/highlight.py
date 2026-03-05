@@ -85,6 +85,10 @@ _REGISTRY: dict[str, _LangDef] = {
 (float) @number
 (function_definition name: (identifier) @function)
 (class_definition name: (identifier) @type)
+(call function: (identifier) @function)
+(call function: (attribute attribute: (identifier) @function))
+(type (identifier) @type)
+(type (subscript value: (identifier) @type))
 (true) @keyword
 (false) @keyword
 (none) @keyword
