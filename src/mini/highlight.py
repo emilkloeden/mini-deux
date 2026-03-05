@@ -228,6 +228,49 @@ _REGISTRY: dict[str, _LangDef] = {
  "short" "unsigned" "signed" "sizeof" "goto"] @keyword
 """,
     ),
+    ".java": _LangDef(
+        module="tree_sitter_java",
+        lang_fn="language",
+        query="""
+(line_comment) @comment
+(block_comment) @comment
+(string_literal) @string
+(character_literal) @string
+(decimal_integer_literal) @number
+(hex_integer_literal) @number
+(octal_integer_literal) @number
+(decimal_floating_point_literal) @number
+(method_declaration name: (identifier) @function)
+(method_invocation name: (identifier) @function)
+(class_declaration name: (identifier) @type)
+(interface_declaration name: (identifier) @type)
+(enum_declaration name: (identifier) @type)
+(type_identifier) @type
+["abstract" "assert" "break" "case" "catch" "class"
+ "continue" "default" "do" "else" "enum" "extends" "final"
+ "finally" "for" "if" "implements" "import" "instanceof"
+ "interface" "native" "new" "package" "private" "protected"
+ "public" "return" "static" "strictfp" "switch"
+ "synchronized" "throw" "throws" "transient" "try"
+ "volatile" "while"] @keyword
+(super) @keyword
+(this) @keyword
+(true) @keyword
+(false) @keyword
+(null_literal) @keyword
+(void_type) @keyword
+""",
+    ),
+    ".md": _LangDef(
+        module="tree_sitter_markdown",
+        lang_fn="language",
+        query="""
+(atx_heading) @type
+(setext_heading) @type
+(fenced_code_block) @string
+(block_quote) @comment
+""",
+    ),
 }
 
 _lang_cache: dict[str, tuple[Language, Parser, Query] | None] = {}
