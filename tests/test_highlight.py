@@ -1,13 +1,23 @@
+import importlib.util
+
+import pytest
+
 from conftest import make_row, make_editor
 
 from mini.highlight import (
     HL_COMMENT,
     HL_FUNCTION,
     HL_KEYWORD,
+    HL_NORMAL,
     HL_NUMBER,
+    HL_STRING,
+    HL_TYPE,
     _cx_to_rx,
     update_syntax,
 )
+
+_java_available = importlib.util.find_spec("tree_sitter_java") is not None
+_md_available = importlib.util.find_spec("tree_sitter_markdown") is not None
 
 
 # ---------------------------------------------------------------------------
@@ -62,14 +72,11 @@ class TestUpdateSyntaxPython:
         row = self.E.rows[1]  # "# comment"
         assert all(hl == HL_COMMENT for hl in row.hl)
 
-    def test_def_is_grammar_keyword_not_identifier(self):
-        # tree-sitter-python treats 'def' as a grammar keyword token, not an
-        # (identifier) node, so it is NOT highlighted via the keyword set.
+    def test_def_is_keyword(self):
         row = self.E.rows[2]  # "def foo():"
-        from mini.highlight import HL_NORMAL
-        assert row.hl[0] == HL_NORMAL
-        assert row.hl[1] == HL_NORMAL
-        assert row.hl[2] == HL_NORMAL
+        assert row.hl[0] == HL_KEYWORD
+        assert row.hl[1] == HL_KEYWORD
+        assert row.hl[2] == HL_KEYWORD
 
     def test_function_name_highlighted(self):
         row = self.E.rows[2]  # "def foo():"
@@ -78,13 +85,10 @@ class TestUpdateSyntaxPython:
         assert row.hl[5] == HL_FUNCTION
         assert row.hl[6] == HL_FUNCTION
 
-    def test_return_is_grammar_keyword_not_identifier(self):
-        # tree-sitter-python treats 'return' as a grammar keyword token, not an
-        # (identifier) node, so it is NOT highlighted via the keyword set.
+    def test_return_is_keyword(self):
         row = self.E.rows[3]  # "    return x"
-        from mini.highlight import HL_NORMAL
-        assert row.hl[4] == HL_NORMAL
-        assert row.hl[9] == HL_NORMAL  # last char of 'return'
+        assert row.hl[4] == HL_KEYWORD   # first char of 'return'
+        assert row.hl[9] == HL_KEYWORD   # last char of 'return'
 
 
 class TestUpdateSyntaxNoHighlight:
@@ -97,7 +101,7 @@ class TestUpdateSyntaxNoHighlight:
 
     def test_unknown_extension_clears_hl(self):
         E = make_editor(["x = 1"])
-        E.file_name = "README.md"
+        E.file_name = "file.xyz"
         update_syntax(E)
         assert E.rows[0].hl == []
 
@@ -105,3 +109,100 @@ class TestUpdateSyntaxNoHighlight:
         E = make_editor()
         E.file_name = "test.py"
         update_syntax(E)  # should not raise
+
+
+def _hl(lines: list[str], filename: str) -> list[list[int]]:
+    E = make_editor(lines)
+    E.file_name = filename
+    update_syntax(E)
+    return [row.hl for row in E.rows]
+
+
+# ---------------------------------------------------------------------------
+# Java
+# ---------------------------------------------------------------------------
+
+@pytest.mark.skipif(not _java_available, reason="tree-sitter-java not installed")
+class TestJavaHighlight:
+    def test_line_comment(self):
+        hl = _hl(["// this is a comment"], "Foo.java")
+        assert all(c == HL_COMMENT for c in hl[0])
+
+    def test_block_comment(self):
+        hl = _hl(["/* block */"], "Foo.java")
+        assert HL_COMMENT in hl[0]
+
+    def test_string_literal(self):
+        hl = _hl(['"hello"'], "Foo.java")
+        assert all(c == HL_STRING for c in hl[0])
+
+    def test_integer_literal(self):
+        hl = _hl(["42"], "Foo.java")
+        assert all(c == HL_NUMBER for c in hl[0])
+
+    def test_keyword_public(self):
+        hl = _hl(["public class Foo {}"], "Foo.java")
+        assert hl[0][0] == HL_KEYWORD  # "public" starts at col 0
+
+    def test_keyword_class(self):
+        hl = _hl(["public class Foo {}"], "Foo.java")
+        assert hl[0][7] == HL_KEYWORD  # "class" starts at col 7
+
+    def test_class_name_is_type(self):
+        hl = _hl(["public class Foo {}"], "Foo.java")
+        assert hl[0][13] == HL_TYPE  # "Foo" starts at col 13
+
+    def test_method_declaration_is_function(self):
+        hl = _hl(["void foo() {}"], "Foo.java")
+        assert hl[0][5] == HL_FUNCTION  # "foo" starts at col 5
+
+    def test_method_call_is_function(self):
+        hl = _hl(["foo();"], "Foo.java")
+        assert hl[0][0] == HL_FUNCTION
+
+    def test_return_keyword(self):
+        hl = _hl(["return x;"], "Foo.java")
+        assert hl[0][0] == HL_KEYWORD
+
+    def test_true_literal(self):
+        hl = _hl(["class A { boolean x = true; }"], "Foo.java")
+        # "true" starts at col 23
+        assert hl[0][23] == HL_KEYWORD
+
+    def test_false_literal(self):
+        hl = _hl(["class A { boolean x = false; }"], "Foo.java")
+        # "false" starts at col 23
+        assert hl[0][23] == HL_KEYWORD
+
+    def test_null_literal(self):
+        hl = _hl(["class A { Object x = null; }"], "Foo.java")
+        # "null" starts at col 21
+        assert hl[0][21] == HL_KEYWORD
+
+
+# ---------------------------------------------------------------------------
+# Markdown
+# ---------------------------------------------------------------------------
+
+@pytest.mark.skipif(not _md_available, reason="tree-sitter-markdown not installed")
+class TestMarkdownHighlight:
+    def test_h1_heading_is_type(self):
+        # tree-sitter-markdown needs a trailing newline (second row) to parse headings
+        hl = _hl(["# Hello", ""], "README.md")
+        assert all(c == HL_TYPE for c in hl[0])
+
+    def test_h2_heading_is_type(self):
+        hl = _hl(["## Section", ""], "README.md")
+        assert all(c == HL_TYPE for c in hl[0])
+
+    def test_fenced_code_block_is_string(self):
+        hl = _hl(["```", "x = 1", "```"], "README.md")
+        assert HL_STRING in hl[0]  # opening fence line
+
+    def test_blockquote_is_comment(self):
+        hl = _hl(["> quoted text"], "README.md")
+        assert HL_COMMENT in hl[0]
+
+    def test_plain_text_is_normal(self):
+        hl = _hl(["just plain text"], "README.md")
+        assert all(c == HL_NORMAL for c in hl[0])

@@ -236,7 +236,6 @@ _REGISTRY: dict[str, _LangDef] = {
 (block_comment) @comment
 (string_literal) @string
 (character_literal) @string
-(text_block) @string
 (decimal_integer_literal) @number
 (hex_integer_literal) @number
 (octal_integer_literal) @number
@@ -247,16 +246,19 @@ _REGISTRY: dict[str, _LangDef] = {
 (interface_declaration name: (identifier) @type)
 (enum_declaration name: (identifier) @type)
 (type_identifier) @type
-["abstract" "assert" "break" "case" "catch" "class" "const"
+["abstract" "assert" "break" "case" "catch" "class"
  "continue" "default" "do" "else" "enum" "extends" "final"
- "finally" "for" "goto" "if" "implements" "import" "instanceof"
+ "finally" "for" "if" "implements" "import" "instanceof"
  "interface" "native" "new" "package" "private" "protected"
- "public" "return" "static" "strictfp" "super" "switch"
- "synchronized" "this" "throw" "throws" "transient" "try"
- "void" "volatile" "while"] @keyword
-(true_literal) @keyword
-(false_literal) @keyword
+ "public" "return" "static" "strictfp" "switch"
+ "synchronized" "throw" "throws" "transient" "try"
+ "volatile" "while"] @keyword
+(super) @keyword
+(this) @keyword
+(true) @keyword
+(false) @keyword
 (null_literal) @keyword
+(void_type) @keyword
 """,
     ),
     ".md": _LangDef(
@@ -266,13 +268,7 @@ _REGISTRY: dict[str, _LangDef] = {
 (atx_heading) @type
 (setext_heading) @type
 (fenced_code_block) @string
-(code_span) @string
-(link_title) @string
-(emphasis) @keyword
-(strong_emphasis) @function
 (block_quote) @comment
-(image) @number
-(inline_link) @number
 """,
     ),
 }
