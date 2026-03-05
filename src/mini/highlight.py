@@ -30,8 +30,49 @@ class _LangDef:
     module: str           # importlib name, e.g. "tree_sitter_python"
     lang_fn: str          # attribute on module returning tree-sitter Language
     query: str            # tree-sitter s-expr query string
-    keywords: frozenset   # identifiers to colour as HL_KEYWORD; empty = none
 
+
+_JS_QUERY = """
+(comment) @comment
+(string) @string
+(template_string) @string
+(number) @number
+(function_declaration name: (identifier) @function)
+(method_definition name: _ @function)
+(class_declaration name: (identifier) @type)
+["var" "let" "const" "function" "class" "return" "if" "else"
+ "for" "while" "do" "switch" "case" "break" "continue" "new"
+ "delete" "typeof" "instanceof" "in" "of" "import" "export"
+ "default" "try" "catch" "finally" "throw" "async" "await"
+ "this" "super" "yield" "static" "extends" "from"] @keyword
+(null) @keyword
+(undefined) @keyword
+(true) @keyword
+(false) @keyword
+"""
+
+_TS_QUERY = """
+(comment) @comment
+(string) @string
+(template_string) @string
+(number) @number
+(function_declaration name: (identifier) @function)
+(method_definition name: _ @function)
+(class_declaration name: (type_identifier) @type)
+(interface_declaration name: (type_identifier) @type)
+(type_alias_declaration name: (type_identifier) @type)
+["var" "let" "const" "function" "class" "return" "if" "else"
+ "for" "while" "do" "switch" "case" "break" "continue" "new"
+ "delete" "typeof" "instanceof" "in" "of" "import" "export"
+ "default" "try" "catch" "finally" "throw" "async" "await"
+ "this" "super" "yield" "static" "extends" "from"
+ "interface" "type" "readonly" "private" "public" "protected"
+ "abstract" "enum" "namespace" "declare" "as"] @keyword
+(null) @keyword
+(undefined) @keyword
+(true) @keyword
+(false) @keyword
+"""
 
 _REGISTRY: dict[str, _LangDef] = {
     ".py": _LangDef(
@@ -44,134 +85,25 @@ _REGISTRY: dict[str, _LangDef] = {
 (float) @number
 (function_definition name: (identifier) @function)
 (class_definition name: (identifier) @type)
-(identifier) @identifier
+(call function: (identifier) @function)
+(call function: (attribute attribute: (identifier) @function))
+(type (identifier) @type)
+(type (subscript value: (identifier) @type))
+(true) @keyword
+(false) @keyword
+(none) @keyword
+["and" "as" "assert" "async" "await"
+ "break" "class" "continue" "def" "del" "elif" "else" "except"
+ "finally" "for" "from" "global" "if" "import" "in" "is"
+ "lambda" "nonlocal" "not" "or" "pass" "raise" "return" "try"
+ "while" "with" "yield"] @keyword
 """,
-        keywords=frozenset({
-            "False", "None", "True", "and", "as", "assert", "async", "await",
-            "break", "class", "continue", "def", "del", "elif", "else", "except",
-            "finally", "for", "from", "global", "if", "import", "in", "is",
-            "lambda", "nonlocal", "not", "or", "pass", "raise", "return", "try",
-            "while", "with", "yield",
-        }),
     ),
-    ".js": _LangDef(
-        module="tree_sitter_javascript",
-        lang_fn="language",
-        query="""
-(comment) @comment
-(string) @string
-(template_string) @string
-(number) @number
-(function_declaration name: (identifier) @function)
-(method_definition name: _ @function)
-(class_declaration name: (identifier) @type)
-(identifier) @identifier
-""",
-        keywords=frozenset({
-            "var", "let", "const", "function", "class", "return", "if", "else",
-            "for", "while", "do", "switch", "case", "break", "continue", "new",
-            "delete", "typeof", "instanceof", "in", "of", "import", "export",
-            "default", "try", "catch", "finally", "throw", "async", "await",
-            "this", "super", "yield", "static", "extends", "from", "null",
-            "undefined", "true", "false",
-        }),
-    ),
-    ".mjs": _LangDef(
-        module="tree_sitter_javascript",
-        lang_fn="language",
-        query="""
-(comment) @comment
-(string) @string
-(template_string) @string
-(number) @number
-(function_declaration name: (identifier) @function)
-(method_definition name: _ @function)
-(class_declaration name: (identifier) @type)
-(identifier) @identifier
-""",
-        keywords=frozenset({
-            "var", "let", "const", "function", "class", "return", "if", "else",
-            "for", "while", "do", "switch", "case", "break", "continue", "new",
-            "delete", "typeof", "instanceof", "in", "of", "import", "export",
-            "default", "try", "catch", "finally", "throw", "async", "await",
-            "this", "super", "yield", "static", "extends", "from", "null",
-            "undefined", "true", "false",
-        }),
-    ),
-    ".cjs": _LangDef(
-        module="tree_sitter_javascript",
-        lang_fn="language",
-        query="""
-(comment) @comment
-(string) @string
-(template_string) @string
-(number) @number
-(function_declaration name: (identifier) @function)
-(method_definition name: _ @function)
-(class_declaration name: (identifier) @type)
-(identifier) @identifier
-""",
-        keywords=frozenset({
-            "var", "let", "const", "function", "class", "return", "if", "else",
-            "for", "while", "do", "switch", "case", "break", "continue", "new",
-            "delete", "typeof", "instanceof", "in", "of", "import", "export",
-            "default", "try", "catch", "finally", "throw", "async", "await",
-            "this", "super", "yield", "static", "extends", "from", "null",
-            "undefined", "true", "false",
-        }),
-    ),
-    ".ts": _LangDef(
-        module="tree_sitter_typescript",
-        lang_fn="language_typescript",
-        query="""
-(comment) @comment
-(string) @string
-(template_string) @string
-(number) @number
-(function_declaration name: (identifier) @function)
-(method_definition name: _ @function)
-(class_declaration name: (type_identifier) @type)
-(interface_declaration name: (type_identifier) @type)
-(type_alias_declaration name: (type_identifier) @type)
-(identifier) @identifier
-""",
-        keywords=frozenset({
-            "var", "let", "const", "function", "class", "return", "if", "else",
-            "for", "while", "do", "switch", "case", "break", "continue", "new",
-            "delete", "typeof", "instanceof", "in", "of", "import", "export",
-            "default", "try", "catch", "finally", "throw", "async", "await",
-            "this", "super", "yield", "static", "extends", "from", "null",
-            "undefined", "true", "false",
-            "interface", "type", "readonly", "private", "public", "protected",
-            "abstract", "enum", "namespace", "declare", "as",
-        }),
-    ),
-    ".tsx": _LangDef(
-        module="tree_sitter_typescript",
-        lang_fn="language_tsx",
-        query="""
-(comment) @comment
-(string) @string
-(template_string) @string
-(number) @number
-(function_declaration name: (identifier) @function)
-(method_definition name: _ @function)
-(class_declaration name: (type_identifier) @type)
-(interface_declaration name: (type_identifier) @type)
-(type_alias_declaration name: (type_identifier) @type)
-(identifier) @identifier
-""",
-        keywords=frozenset({
-            "var", "let", "const", "function", "class", "return", "if", "else",
-            "for", "while", "do", "switch", "case", "break", "continue", "new",
-            "delete", "typeof", "instanceof", "in", "of", "import", "export",
-            "default", "try", "catch", "finally", "throw", "async", "await",
-            "this", "super", "yield", "static", "extends", "from", "null",
-            "undefined", "true", "false",
-            "interface", "type", "readonly", "private", "public", "protected",
-            "abstract", "enum", "namespace", "declare", "as",
-        }),
-    ),
+    ".js":  _LangDef(module="tree_sitter_javascript", lang_fn="language",         query=_JS_QUERY),
+    ".mjs": _LangDef(module="tree_sitter_javascript", lang_fn="language",         query=_JS_QUERY),
+    ".cjs": _LangDef(module="tree_sitter_javascript", lang_fn="language",         query=_JS_QUERY),
+    ".ts":  _LangDef(module="tree_sitter_typescript", lang_fn="language_typescript", query=_TS_QUERY),
+    ".tsx": _LangDef(module="tree_sitter_typescript", lang_fn="language_tsx",     query=_TS_QUERY),
     ".rs": _LangDef(
         module="tree_sitter_rust",
         lang_fn="language",
@@ -186,14 +118,13 @@ _REGISTRY: dict[str, _LangDef] = {
 (struct_item name: (type_identifier) @type)
 (enum_item name: (type_identifier) @type)
 (type_identifier) @type
-(identifier) @identifier
+["fn" "let" "mut" "const" "static" "use" "mod" "pub" "struct"
+ "enum" "impl" "trait" "type" "where" "for" "while" "loop"
+ "if" "else" "match" "return" "break" "continue"
+ "super" "crate" "async" "await" "move" "ref" "in" "as"] @keyword
+(self) @keyword
+(Self) @keyword
 """,
-        keywords=frozenset({
-            "fn", "let", "mut", "const", "static", "use", "mod", "pub", "struct",
-            "enum", "impl", "trait", "type", "where", "for", "while", "loop",
-            "if", "else", "match", "return", "break", "continue", "self", "Self",
-            "super", "crate", "async", "await", "move", "ref", "in", "as",
-        }),
     ),
     ".go": _LangDef(
         module="tree_sitter_go",
@@ -207,14 +138,14 @@ _REGISTRY: dict[str, _LangDef] = {
 (function_declaration name: (identifier) @function)
 (method_declaration name: (field_identifier) @function)
 (type_spec name: (type_identifier) @type)
-(identifier) @identifier
+["func" "var" "const" "type" "package" "import" "if" "else"
+ "for" "switch" "case" "select" "return" "break" "continue"
+ "goto" "defer" "go" "chan" "map" "struct" "interface"
+ "make" "new" "append"] @keyword
+(nil) @keyword
+(true) @keyword
+(false) @keyword
 """,
-        keywords=frozenset({
-            "func", "var", "const", "type", "package", "import", "if", "else",
-            "for", "switch", "case", "select", "return", "break", "continue",
-            "goto", "defer", "go", "chan", "map", "struct", "interface", "nil",
-            "true", "false", "make", "new", "append",
-        }),
     ),
     ".sh": _LangDef(
         module="tree_sitter_bash",
@@ -225,12 +156,9 @@ _REGISTRY: dict[str, _LangDef] = {
 (raw_string) @string
 (number) @number
 (function_definition name: (word) @function)
-(word) @identifier
+["if" "then" "else" "elif" "fi" "for" "while" "do" "done"
+ "case" "esac" "in" "return" "local" "export"] @keyword
 """,
-        keywords=frozenset({
-            "if", "then", "else", "elif", "fi", "for", "while", "do", "done",
-            "case", "esac", "function", "in", "return", "local", "export",
-        }),
     ),
     ".bash": _LangDef(
         module="tree_sitter_bash",
@@ -241,12 +169,9 @@ _REGISTRY: dict[str, _LangDef] = {
 (raw_string) @string
 (number) @number
 (function_definition name: (word) @function)
-(word) @identifier
+["if" "then" "else" "elif" "fi" "for" "while" "do" "done"
+ "case" "esac" "in" "return" "local" "export"] @keyword
 """,
-        keywords=frozenset({
-            "if", "then", "else", "elif", "fi", "for", "while", "do", "done",
-            "case", "esac", "function", "in", "return", "local", "export",
-        }),
     ),
     ".json": _LangDef(
         module="tree_sitter_json",
@@ -258,7 +183,6 @@ _REGISTRY: dict[str, _LangDef] = {
 (false) @keyword
 (null) @keyword
 """,
-        keywords=frozenset(),
     ),
     ".toml": _LangDef(
         module="tree_sitter_toml",
@@ -271,7 +195,6 @@ _REGISTRY: dict[str, _LangDef] = {
 (boolean) @keyword
 (bare_key) @function
 """,
-        keywords=frozenset(),
     ),
     ".c": _LangDef(
         module="tree_sitter_c",
@@ -283,14 +206,11 @@ _REGISTRY: dict[str, _LangDef] = {
 (number_literal) @number
 (function_declarator declarator: (identifier) @function)
 (type_identifier) @type
-(identifier) @identifier
+["if" "else" "for" "while" "do" "switch" "case" "break"
+ "continue" "return" "struct" "enum" "union" "typedef" "const"
+ "static" "extern" "void" "int" "char" "float" "double" "long"
+ "short" "unsigned" "signed" "sizeof" "goto"] @keyword
 """,
-        keywords=frozenset({
-            "if", "else", "for", "while", "do", "switch", "case", "break",
-            "continue", "return", "struct", "enum", "union", "typedef", "const",
-            "static", "extern", "void", "int", "char", "float", "double", "long",
-            "short", "unsigned", "signed", "sizeof", "goto",
-        }),
     ),
     ".h": _LangDef(
         module="tree_sitter_c",
@@ -302,21 +222,18 @@ _REGISTRY: dict[str, _LangDef] = {
 (number_literal) @number
 (function_declarator declarator: (identifier) @function)
 (type_identifier) @type
-(identifier) @identifier
+["if" "else" "for" "while" "do" "switch" "case" "break"
+ "continue" "return" "struct" "enum" "union" "typedef" "const"
+ "static" "extern" "void" "int" "char" "float" "double" "long"
+ "short" "unsigned" "signed" "sizeof" "goto"] @keyword
 """,
-        keywords=frozenset({
-            "if", "else", "for", "while", "do", "switch", "case", "break",
-            "continue", "return", "struct", "enum", "union", "typedef", "const",
-            "static", "extern", "void", "int", "char", "float", "double", "long",
-            "short", "unsigned", "signed", "sizeof", "goto",
-        }),
     ),
 }
 
-_lang_cache: dict[str, tuple | None] = {}
+_lang_cache: dict[str, tuple[Language, Parser, Query] | None] = {}
 
 
-def _get_lang(ext: str) -> tuple[Language, Parser, Query, frozenset] | None:
+def _get_lang(ext: str) -> tuple[Language, Parser, Query] | None:
     if ext not in _REGISTRY:
         return None
     if ext in _lang_cache:
@@ -325,7 +242,7 @@ def _get_lang(ext: str) -> tuple[Language, Parser, Query, frozenset] | None:
     try:
         mod = importlib.import_module(defn.module)
         lang = Language(getattr(mod, defn.lang_fn)())
-        result: tuple | None = (lang, Parser(lang), Query(lang, defn.query), defn.keywords)
+        result: tuple | None = (lang, Parser(lang), Query(lang, defn.query))
     except Exception:
         result = None  # don't retry
     _lang_cache[ext] = result
@@ -355,7 +272,7 @@ def update_syntax(E: EditorConfig) -> None:
             row.hl = []
         return
 
-    _lang, _parser, query, keywords = lang_info
+    _lang, _parser, query = lang_info
 
     source = "\n".join(row.chars for row in E.rows)
     tree = _parser.parse(source.encode())
@@ -367,19 +284,11 @@ def update_syntax(E: EditorConfig) -> None:
     captures = cursor.captures(tree.root_node)
 
     for capture_name, nodes in captures.items():
-        if capture_name == "identifier":
-            if not keywords:
-                continue
-            for node in nodes:
-                if node.text.decode() not in keywords:
-                    continue
-                _apply_hl(E, node, HL_KEYWORD)
-        else:
-            hl_type = _CAPTURE_HL.get(capture_name)
-            if hl_type is None:
-                continue
-            for node in nodes:
-                _apply_hl(E, node, hl_type)
+        hl_type = _CAPTURE_HL.get(capture_name)
+        if hl_type is None:
+            continue
+        for node in nodes:
+            _apply_hl(E, node, hl_type)
 
 
 def _apply_hl(E: EditorConfig, node: object, hl_type: int) -> None:
