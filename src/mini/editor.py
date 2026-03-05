@@ -797,7 +797,7 @@ def editor_move_cursor(E: EditorConfig, key: int):
 
 def editor_open(E: EditorConfig, filename: str) -> None:
     E.file_name = filename
-    fp = open(filename)
+    fp = open(filename, encoding="utf-8")
     if not fp:
         die()
 
@@ -821,7 +821,7 @@ def editor_save(E: EditorConfig) -> None:
 
     buf = editor_rows_to_string(E)
     try:
-        with open(E.file_name, "w") as f:
+        with open(E.file_name, "w", encoding="utf-8") as f:
             f.write(buf)
             E.dirty = 0
             editor_set_status_message(E, f"{len(buf)} bytes written to disk")
